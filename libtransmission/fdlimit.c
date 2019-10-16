@@ -384,7 +384,6 @@ static void ensureSessionFdInfoExists(tr_session* session)
         i = tr_new0(struct tr_fdInfo, 1);
         fileset_construct(&i->fileset, FILE_CACHE_SIZE);
         session->fdInfo = i;
-
     }
 }
 
