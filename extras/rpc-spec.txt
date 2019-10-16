@@ -18,7 +18,7 @@
    The command-line utility "transmission-remote" uses this RPC API.
    Several developers have reported using its --debug JSON output as
    a reference when developing/debugging their own code.
-   
+
 2.  Message Format
 
    Messages are formatted as objects.  There are two types:
@@ -37,7 +37,7 @@
 
 2.2.  Responses
 
-   Reponses support three keys:
+   Responses support three keys:
 
    (1) A required "result" string whose value MUST be "success" on success,
        or an error string on failure.
@@ -117,6 +117,7 @@
    "files-unwanted"      | array      indices of file(s) to not download
    "honorsSessionLimits" | boolean    true if session upload limits are honored
    "ids"                 | array      torrent list, as described in 3.1
+   "labels"              | array      array of string labels
    "location"            | string     new location of the torrent's content
    "peer-limit"          | number     maximum number of peers
    "priority-high"       | array      indices of high-priority file(s)
@@ -160,7 +161,7 @@
    in libtransmission/transmission.h.  The "source" column here
    corresponds to the data structure there.
 
-   key                         | type                        | source 
+   key                         | type                        | source
    ----------------------------+-----------------------------+---------
    activityDate                | number                      | tr_stat
    addedDate                   | number                      | tr_stat
@@ -189,6 +190,7 @@
    isFinished                  | boolean                     | tr_stat
    isPrivate                   | boolean                     | tr_torrent
    isStalled                   | boolean                     | tr_stat
+   labels                      | array (see below)           | tr_torrent
    leftUntilDone               | number                      | tr_stat
    magnetLink                  | string                      | n/a
    manualAnnounceTime          | number                      | tr_stat
@@ -246,6 +248,10 @@
                       | bytesCompleted          | number     | tr_torrent
                       | wanted                  | boolean    | tr_info
                       | priority                | number     | tr_info
+   -------------------+--------------------------------------+
+   labels             | an array of strings:                 |
+                      +-------------------------+------------+
+                      | label                   | string     | tr_torrent
    -------------------+--------------------------------------+
    peers              | array of objects, each containing:   |
                       +-------------------------+------------+
@@ -335,7 +341,7 @@
 
    Say we want to get the name and total size of torrents #7 and #10.
 
-   Request: 
+   Request:
 
       {
          "arguments": {
@@ -351,8 +357,8 @@
 
       {
          "arguments": {
-            "torrents": [ 
-               { 
+            "torrents": [
+               {
                    "id": 10,
                    "name": "Fedora x86_64 DVD",
                    "totalSize": 34983493932,
@@ -361,7 +367,7 @@
                    "id": 7,
                    "name": "Ubuntu x86_64 DVD",
                    "totalSize", 9923890123,
-               } 
+               }
             ]
          },
          "result": "success",
@@ -382,7 +388,7 @@
    "metainfo"           | string      base64-encoded .torrent content
    "paused"             | boolean     if true, don't start the torrent
    "peer-limit"         | number      maximum number of peers
-   "bandwidthPriority"  | number      torrent's bandwidth tr_priority_t 
+   "bandwidthPriority"  | number      torrent's bandwidth tr_priority_t
    "files-wanted"       | array       indices of file(s) to download
    "files-unwanted"     | array       indices of file(s) to not download
    "priority-high"      | array       indices of high-priority file(s)
@@ -394,7 +400,7 @@
 
    The format of the "cookies" should be NAME=CONTENTS, where NAME is the
    cookie name and CONTENTS is what the cookie should contain.
-   Set multiple cookies like this: "name1=content1; name2=content2;" etc. 
+   Set multiple cookies like this: "name1=content1; name2=content2;" etc.
    <http://curl.haxx.se/libcurl/c/curl_easy_setopt.html#CURLOPTCOOKIE>
 
    Response arguments: On success, a "torrent-added" object in the
@@ -533,15 +539,16 @@
 
    Method name: "session-set"
    Request arguments: one or more of 4.1's arguments, except: "blocklist-size",
-                      "config-dir", "rpc-version", "rpc-version-minimum", and
-                      "version"
+                      "config-dir", "rpc-version", "rpc-version-minimum",
+                      "version", and "session-id"
    Response arguments: none
 
 4.1.2.  Accessors
 
    Method name: "session-get"
-   Request arguments: none
-   Response arguments: all of 4.1's arguments
+   Request arguments: an optional "fields" array of keys (see 4.1)
+   Response arguments: key/value pairs matching the request's "fields"
+       argument if present, or all supported fields (see 4.1) otherwise.
 
 4.2.  Session Statistics
 
@@ -685,12 +692,12 @@
          |         |           |                      |
          |         | yes       | torrent-set          | new arg "bandwidthPriority"
          |         | yes       | torrent-set          | new arg "honorsSessionLimits"
-         |         | yes       | torrent-set          | new arg "seedRatioLimit" 
-         |         | yes       | torrent-set          | new arg "seedRatioLimited" 
-         |         |        NO | torrent-set          | renamed "speed-limit-down" to "downloadLimit" 
-         |         |        NO | torrent-set          | renamed "speed-limit-down-enabled" to "downloadLimited" 
-         |         |        NO | torrent-set          | renamed "speed-limit-up" to "uploadLimit" 
-         |         |        NO | torrent-set          | renamed "speed-limit-up-enabled" to "uploadLimited" 
+         |         | yes       | torrent-set          | new arg "seedRatioLimit"
+         |         | yes       | torrent-set          | new arg "seedRatioLimited"
+         |         |        NO | torrent-set          | renamed "speed-limit-down" to "downloadLimit"
+         |         |        NO | torrent-set          | renamed "speed-limit-down-enabled" to "downloadLimited"
+         |         |        NO | torrent-set          | renamed "speed-limit-up" to "uploadLimit"
+         |         |        NO | torrent-set          | renamed "speed-limit-up-enabled" to "uploadLimited"
          |         |           |                      |
          |         | yes       | torrent-get          | new arg "bandwidthPriority"
          |         | yes       | torrent-get          | new arg "fileStats"
@@ -758,7 +765,7 @@
    13    | 2.30    | yes       | session-get          | new arg "isUTP" to the "peers" list
          |         | yes       | torrent-add          | new arg "cookies"
          |         |        NO | torrent-get          | removed arg "peersKnown"
-   ------+---------+-----------+--------------------------+-------------------------------
+   ------+---------+-----------+----------------------+-------------------------------
    14    | 2.40    |        NO | torrent-get          | values of "status" field changed
          |         | yes       | torrent-get          | new arg "queuePosition"
          |         | yes       | torrent-get          | new arg "isStalled"
@@ -775,11 +782,17 @@
          |         | yes       |                      | new method "queue-move-down"
          |         | yes       |                      | new method "queue-move-bottom"
          |         | yes       |                      | new method "torrent-start-now"
-   ------+---------+-----------+--------------------------+-------------------------------
+   ------+---------+-----------+----------------------+-------------------------------
    15    | 2.80    | yes       | torrent-get          | new arg "etaIdle"
          |         | yes       | torrent-rename-path  | new method
          |         | yes       | free-space           | new method
-         |         | yes       | torrent-add          | new return return arg "torrent-duplicate"
+         |         | yes       | torrent-add          | new return arg "torrent-duplicate"
+   ------+---------+-----------+----------------------+-------------------------------
+   16    | 3.00    | yes       | session-get          | new request arg "fields"
+         |         | yes       | session-get          | new arg "session-id"
+         |         | yes       | torrent-get          | new arg "labels"
+         |         | yes       | torrent-set          | new arg "labels"
+
 
 5.1.  Upcoming Breakage
 

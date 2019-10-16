@@ -46,12 +46,16 @@ set(${PROJECT_NAME}_SOURCES
     rpcimpl.c
     rpc-server.c
     session.c
+    session-id.c
+    subprocess-posix.c
+    subprocess-win32.c
     stats.c
     torrent.c
     torrent-ctor.c
     torrent-magnet.c
     tr-dht.c
     trevent.c
+    tr-assert.c
     tr-getopt.c
     tr-lpd.c
     tr-udp.c
@@ -92,9 +96,9 @@ else()
 endif()
 
 if(WIN32)
-    set_source_files_properties(file-posix.c PROPERTIES HEADER_FILE_ONLY ON)
+    set_source_files_properties(file-posix.c subprocess-posix.c PROPERTIES HEADER_FILE_ONLY ON)
 else()
-    set_source_files_properties(file-win32.c watchdir-win32.c PROPERTIES HEADER_FILE_ONLY ON)
+    set_source_files_properties(file-win32.c subprocess-win32.c watchdir-win32.c PROPERTIES HEADER_FILE_ONLY ON)
 endif()
 
 set(${PROJECT_NAME}_PUBLIC_HEADERS
@@ -105,7 +109,10 @@ set(${PROJECT_NAME}_PUBLIC_HEADERS
     makemeta.h
     quark.h
     rpcimpl.h
+    session-id.h
+    tr-assert.h
     tr-getopt.h
+    tr-macros.h
     transmission.h
     utils.h
     variant.h
@@ -139,6 +146,7 @@ set(${PROJECT_NAME}_PRIVATE_HEADERS
     peer-io.h
     peer-mgr.h
     peer-msgs.h
+    peer-socket.h
     platform.h
     platform-quota.h
     port-forwarding.h
@@ -146,6 +154,7 @@ set(${PROJECT_NAME}_PRIVATE_HEADERS
     resume.h
     rpc-server.h
     session.h
+    subprocess.h
     stats.h
     torrent.h
     torrent-magnet.h
@@ -192,6 +201,10 @@ endif()
 
 if(USE_SYSTEM_B64)
     add_definitions(-DUSE_SYSTEM_B64)
+endif()
+
+if(CYASSL_IS_WOLFSSL)
+    add_definitions(-DCYASSL_IS_WOLFSSL)
 endif()
 
 if(POLARSSL_IS_MBEDTLS)
@@ -248,6 +261,7 @@ target_link_libraries(${TR_NAME}
     ${B64_LIBRARIES}
     ${LIBINTL_LIBRARY}
     ${LIBM_LIBRARY}
+    ${TR_NETWORK_LIBRARIES}
 )
 
 if(ICONV_FOUND)
@@ -255,7 +269,7 @@ if(ICONV_FOUND)
 endif()
 
 if(WIN32)
-    target_link_libraries(${TR_NAME} iphlpapi ws2_32)
+    target_link_libraries(${TR_NAME} shlwapi)
 endif()
 
 if(ENABLE_TESTS)
@@ -268,16 +282,19 @@ if(ENABLE_TESTS)
     set_property(TARGET ${TR_NAME}-test PROPERTY FOLDER "UnitTests")
 
     set(crypto-test_ADD_SOURCES crypto-test-ref.h)
+    set(subprocess-test_ADD_SOURCES subprocess-test.cmd)
 
     set(watchdir@generic-test_DEFINITIONS WATCHDIR_TEST_FORCE_GENERIC)
 
-    foreach(T bitfield blocklist clients crypto error file history json magnet metainfo move peer-msgs quark rename rpc session
-              tr-getopt utils variant watchdir watchdir@generic)
+    foreach(T bitfield blocklist clients crypto error file history json magnet makemeta metainfo move peer-msgs quark rename rpc
+              session subprocess tr-getopt utils variant watchdir watchdir@generic)
         set(TP ${TR_NAME}-test-${T})
         if(T MATCHES "^([^@]+)@.+$")
-            string(REPLACE "@" "_" TP "${TP}")
+            string(REPLACE "@" "-" TP "${TP}")
+            string(REPLACE "@" "-" T_NAME "${T}")
             set(${TP}_TEST_BASENAME "${CMAKE_MATCH_1}")
         else()
+            set(T_NAME "${T}")
             set(${TP}_TEST_BASENAME "${T}")
         endif()
         add_executable(${TP} ${${TP}_TEST_BASENAME}-test.c ${${T}-test_ADD_SOURCES})
@@ -285,9 +302,15 @@ if(ENABLE_TESTS)
         if(DEFINED ${T}-test_DEFINITIONS)
             target_compile_definitions(${TP} PRIVATE ${${T}-test_DEFINITIONS})
         endif()
-        add_test(NAME ${T} COMMAND ${TP})
+        add_test(NAME ${T_NAME}-test COMMAND ${TP})
         set_property(TARGET ${TP} PROPERTY FOLDER "UnitTests")
     endforeach()
+
+    if(WIN32)
+        add_custom_command(TARGET ${TR_NAME}-test-subprocess PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PROJECT_SOURCE_DIR}/subprocess-test.cmd
+                $<TARGET_FILE_DIR:${TR_NAME}-test-subprocess>/${TR_NAME}-test-subprocess.cmd)
+    endif()
 endif()
 
 if(INSTALL_LIB)
